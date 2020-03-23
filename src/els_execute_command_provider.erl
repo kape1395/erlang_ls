@@ -19,7 +19,9 @@ is_enabled() -> true.
 -spec options() -> map().
 options() ->
   #{ commands => [ els_command:with_prefix(<<"replace-lines">>)
-                 , els_command:with_prefix(<<"server-info">>)] }.
+                 , els_command:with_prefix(<<"server-info">>)
+                 , els_command:with_prefix(<<"ct-run-test">>)
+                 ] }.
 
 -spec handle_request(any(), els_provider:state()) ->
   {any(), els_provider:state()}.
@@ -39,7 +41,7 @@ execute_command(<<"replace-lines">>
                , [#{ <<"uri">>   := Uri
                    , <<"lines">> := Lines
                    , <<"from">>  := LineFrom
-                   , <<"to">>    := LineTo }] = _Arguments) ->
+                   , <<"to">>    := LineTo }]) ->
   Method = <<"workspace/applyEdit">>,
   Params = #{ edit =>
                   els_text_edit:edit_replace_text(Uri, Lines, LineFrom, LineTo)
@@ -63,6 +65,57 @@ execute_command(<<"server-info">>, _Arguments) ->
                                #{ type => ?MESSAGE_TYPE_INFO,
                                   message => Message
                                 }),
+  [];
+execute_command(<<"ct-run-test">>, [#{ <<"module">> := Module
+                                     , <<"function">> := Function
+                                     , <<"arity">> := Arity
+                                     , <<"range">> := Range
+                                     , <<"uri">> := Uri
+                                     }]) ->
+  lager:info("Running CT test [module=~s] [function=~s] [arity=~p]", [ Module
+                                                                     , Function
+                                                                     , Arity]),
+  %% TODO: Run in separate node
+  %% TODO: Move logic to separate module
+  Config = #{ task => fun({M, F, _A}) ->
+                          Opts = [ {suite, [binary_to_atom(M, utf8)]}
+                                 , {testcase, [binary_to_atom(F, utf8)]}
+                                 , {include, els_config:get(include_paths)}
+                                 , {auto_compile, false}
+                                   %% TODO: Add support for groups
+                                   %% TODO: Intercept output
+                                   %% TODO: Where to show logs?
+                                 , {logdir, "/tmp/pigeon"}
+                                 ],
+                          ct:capture_start(),
+                          Result = ct:run_test(Opts),
+                          ct:capture_stop(),
+                          Output = ct:capture_get(),
+                          lager:info("CT Result: ~p", [Result, Output]),
+                          %% TODO: Move logic to diagnostics module
+                          %% TODO: Show real result
+                          %% TODO: Send result on_complete
+                          Diagnostics = [  #{ range    => Range
+                                            , message  => <<"Test done">>
+                                            , severity => 3
+                                            , source   => <<"Common Test">>
+                                            }
+                                        ],
+                          Method = <<"textDocument/publishDiagnostics">>,
+                          Params = #{ uri         => Uri
+                                    , diagnostics => Diagnostics
+                                    },
+                          els_server:send_notification(Method, Params)
+                      end
+            , entries => [{Module, Function, Arity}]
+              %% TODO: Add MFA to title
+            , title => <<"Running CT test">>
+            , on_complete => fun() ->
+                                 ok
+                             end
+            , on_error => fun() -> ok end
+            },
+  els_background_job:new(Config),
   [];
 execute_command(Command, Arguments) ->
   lager:info("Unsupported command: [Command=~p] [Arguments=~p]"

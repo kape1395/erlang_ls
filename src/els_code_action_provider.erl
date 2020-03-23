@@ -52,10 +52,10 @@ replace_lines_action(Uri, Title, Kind, Lines, Range) ->
    , command =>
        els_command:make_command( Title
                                , <<"replace-lines">>
-                               , [#{ uri   => Uri
-                                   , lines => Lines
-                                   , from  => StartLine
-                                   , to    => EndLine }])
+                               , #{ uri   => Uri
+                                  , lines => Lines
+                                  , from  => StartLine
+                                  , to    => EndLine })
    }.
 
 -spec make_code_action(uri(), diagnostic()) -> [map()].

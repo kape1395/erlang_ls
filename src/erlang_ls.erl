@@ -131,7 +131,8 @@ lager_config() ->
       Handlers  = lager_handlers(LogRoot),
       ok = application:set_env(lager, handlers, Handlers),
       ok = application:set_env(lager, crash_log, "crash.log"),
-      ok = application:set_env(lager, log_root, LogRoot);
+      ok = application:set_env(lager, log_root, LogRoot),
+      ok = application:set_env(lager, colored, true);
     false ->
       ok = application:set_env(lager, handlers, []),
       ok = application:set_env(lager, crash_log, false)
