@@ -54,7 +54,7 @@ make_diagnostic(Range, Message, Severity, Source) ->
    , source   => Source
    }.
 
--spec publish(els_uri:uri(), [diagnostic()]) -> ok.
+-spec publish(uri(), [diagnostic()]) -> ok.
 publish(Uri, Diagnostics) ->
   Method = <<"textDocument/publishDiagnostics">>,
   Params = #{ uri         => Uri

@@ -9,7 +9,7 @@
 -include("erlang_ls.hrl").
 
 -type id() :: any().
--type options() :: #{uri := els_uri:uri(), line := pos_integer()}.
+-type options() :: #{uri := uri(), line := pos_integer()}.
 -type suite() :: atom().
 -type testcase() :: atom() | tuple().
 -type state() :: #{options := options()}.
