@@ -21,12 +21,12 @@ command(_POI) ->
 
 -spec command_args(els_dt_document:item(), poi()) -> [any()].
 command_args( #{uri := Uri} = _Document
-            , #{id := {F, A}, range := Range} = _POI) ->
+            , #{id := {F, A}, range := #{from := {Line, _}}} = _POI) ->
   [#{ module => els_uri:module(Uri)
     , function => F
     , arity => A
     , uri => Uri
-    , range => els_protocol:range(Range)
+    , line => Line
     }].
 
 -spec is_default() -> boolean().

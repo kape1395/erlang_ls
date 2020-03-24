@@ -69,50 +69,48 @@ execute_command(<<"server-info">>, _Arguments) ->
 execute_command(<<"ct-run-test">>, [#{ <<"module">> := Module
                                      , <<"function">> := Function
                                      , <<"arity">> := Arity
-                                     , <<"range">> := Range
+                                     , <<"line">> := Line
                                      , <<"uri">> := Uri
                                      }]) ->
   lager:info("Running CT test [module=~s] [function=~s] [arity=~p]", [ Module
                                                                      , Function
                                                                      , Arity]),
-  %% TODO: Run in separate node
-  %% TODO: Move logic to separate module
-  Config = #{ task => fun({M, F, _A}) ->
-                          Opts = [ {suite, [binary_to_atom(M, utf8)]}
+  Title = unicode:characters_to_binary(
+            io_lib:format( "Running CT test for ~p:~p/~p"
+                         , [Module, Function, Arity])),
+  Config = #{ task => fun({_M, F, _A}) ->
+                          Opts = [ {suite, [binary_to_list(els_uri:path(Uri))]}
                                  , {testcase, [binary_to_atom(F, utf8)]}
                                  , {include, els_config:get(include_paths)}
-                                 , {auto_compile, false}
+                                 , {auto_compile, true}
                                    %% TODO: Add support for groups
-                                   %% TODO: Intercept output
                                    %% TODO: Where to show logs?
                                  , {logdir, "/tmp/pigeon"}
+                                 , {ct_hooks, [{els_cth, #{ uri => Uri
+                                                          , line => Line}}]}
                                  ],
-                          ct:capture_start(),
                           Result = ct:run_test(Opts),
-                          ct:capture_stop(),
-                          Output = ct:capture_get(),
-                          lager:info("CT Result: ~p", [Result, Output]),
-                          %% TODO: Move logic to diagnostics module
-                          %% TODO: Show real result
-                          %% TODO: Send result on_complete
-                          Diagnostics = [  #{ range    => Range
-                                            , message  => <<"Test done">>
-                                            , severity => 3
-                                            , source   => <<"Common Test">>
-                                            }
-                                        ],
-                          Method = <<"textDocument/publishDiagnostics">>,
-                          Params = #{ uri         => Uri
-                                    , diagnostics => Diagnostics
-                                    },
-                          els_server:send_notification(Method, Params)
+                          lager:info("CT Result: ~p", [Result]),
+                          case Result of
+                            {N, 0, {0, 0}} when N > 0 ->
+                              Range = els_protocol:range( #{ from => {Line, 1}
+                                                           , to => {Line + 1, 1}
+                                                           }),
+                              Message = <<"Test passed">>,
+                              Diagnostic =
+                                els_diagnostics:make_diagnostic(Range
+                                                               , Message
+                                                               , ?DIAGNOSTIC_HINT
+                                                               , <<"Common Test">>
+                                                               ),
+                              els_diagnostics:publish(Uri, [Diagnostic]);
+                            _ ->
+                              ok
+                          end
                       end
             , entries => [{Module, Function, Arity}]
-              %% TODO: Add MFA to title
-            , title => <<"Running CT test">>
-            , on_complete => fun() ->
-                                 ok
-                             end
+            , title => Title
+            , on_complete => fun() -> ok end
             , on_error => fun() -> ok end
             },
   els_background_job:new(Config),
