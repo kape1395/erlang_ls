@@ -13,6 +13,7 @@
 %% Test cases
 -export([ default_lenses/1
         , server_info/1
+        , ct_run_test/1
         ]).
 
 %%==============================================================================
@@ -94,4 +95,8 @@ server_info(Config) ->
        }
     ],
   ?assertEqual(Expected, Result),
+  ok.
+
+-spec ct_run_test(config()) -> ok.
+ct_run_test(_Config) ->
   ok.

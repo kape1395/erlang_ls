@@ -66,54 +66,8 @@ execute_command(<<"server-info">>, _Arguments) ->
                                   message => Message
                                 }),
   [];
-execute_command(<<"ct-run-test">>, [#{ <<"module">> := Module
-                                     , <<"function">> := Function
-                                     , <<"arity">> := Arity
-                                     , <<"line">> := Line
-                                     , <<"uri">> := Uri
-                                     }]) ->
-  lager:info("Running CT test [module=~s] [function=~s] [arity=~p]", [ Module
-                                                                     , Function
-                                                                     , Arity]),
-  Title = unicode:characters_to_binary(
-            io_lib:format( "Running CT test for ~p:~p/~p"
-                         , [Module, Function, Arity])),
-  Config = #{ task => fun({_M, F, _A}) ->
-                          Opts = [ {suite, [binary_to_list(els_uri:path(Uri))]}
-                                 , {testcase, [binary_to_atom(F, utf8)]}
-                                 , {include, els_config:get(include_paths)}
-                                 , {auto_compile, true}
-                                   %% TODO: Add support for groups
-                                   %% TODO: Where to show logs?
-                                 , {logdir, "/tmp/pigeon"}
-                                 , {ct_hooks, [{els_cth, #{ uri => Uri
-                                                          , line => Line}}]}
-                                 ],
-                          Result = ct:run_test(Opts),
-                          lager:info("CT Result: ~p", [Result]),
-                          case Result of
-                            {N, 0, {0, 0}} when N > 0 ->
-                              Range = els_protocol:range( #{ from => {Line, 1}
-                                                           , to => {Line + 1, 1}
-                                                           }),
-                              Message = <<"Test passed">>,
-                              Diagnostic =
-                                els_diagnostics:make_diagnostic(Range
-                                                               , Message
-                                                               , ?DIAGNOSTIC_HINT
-                                                               , <<"Common Test">>
-                                                               ),
-                              els_diagnostics:publish(Uri, [Diagnostic]);
-                            _ ->
-                              ok
-                          end
-                      end
-            , entries => [{Module, Function, Arity}]
-            , title => Title
-            , on_complete => fun() -> ok end
-            , on_error => fun() -> ok end
-            },
-  els_background_job:new(Config),
+execute_command(<<"ct-run-test">>, [Params]) ->
+  els_command_ct_run_test:execute(Params),
   [];
 execute_command(Command, Arguments) ->
   lager:info("Unsupported command: [Command=~p] [Arguments=~p]"
