@@ -32,11 +32,9 @@ precondition(_Document) ->
   true.
 
 -spec pois(els_dt_document:item()) -> [poi()].
-pois(Document) ->
-  case els_dt_document:pois(Document) of
-    [] -> [];
-    [H|_] -> [H]
-  end.
+pois(_Document) ->
+  %% Return a dummy POI on the first line
+  [els_poi:new(#{from => {1, 1}, to => {2, 1}}, dummy, dummy)].
 
 -spec title(poi()) -> binary().
 title(_POI) ->
