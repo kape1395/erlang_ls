@@ -53,7 +53,8 @@ end_per_suite(Config) ->
 -spec init_per_testcase(atom(), config()) -> config().
 init_per_testcase(ct_run_test, Config0) ->
   Config = els_test_utils:init_per_testcase(ct_run_test, Config0),
-  [{ref, setup_mocks()} | Config];
+  setup_mocks(),
+  Config;
 init_per_testcase(TestCase, Config) ->
   els_test_utils:init_per_testcase(TestCase, Config).
 
@@ -102,7 +103,7 @@ ct_run_test(Config) ->
                                              }]),
   Expected = [],
   ?assertEqual(Expected, Result),
-  wait_until_mocks_called(?config(ref, Config)),
+  wait_until_mock_called(els_protocol, notification),
   ?assertEqual(1, meck:num_calls(els_command_ct_run_test, ct_run_test, '_')),
   Notifications = [{Method, Args} ||
                     { _Pid
@@ -138,23 +139,19 @@ strip_server_prefix(_Config) ->
               , els_command:without_prefix(<<"13:server-info:f">>)),
   ok.
 
--spec setup_mocks() -> reference().
+-spec setup_mocks() -> ok.
 setup_mocks() ->
-  Ref = make_ref(),
-  Self = self(),
   meck:new(els_command_ct_run_test, [passthrough, no_link, non_strict]),
   meck:new(els_protocol, [passthrough, no_link]),
   meck:expect( els_command_ct_run_test, ct_run_test, 1
              , fun(_) ->
-                   Self ! {ct_run_test, Ref},
                    {1, 0, {0, 0}}
                end),
   meck:expect( els_protocol, notification, 2
              , fun(Method, Params) ->
-                   Self ! {notification, Ref},
                    meck:passthrough([Method, Params])
                end),
-  Ref.
+  ok.
 
 -spec teardown_mocks() -> ok.
 teardown_mocks() ->
@@ -162,7 +159,12 @@ teardown_mocks() ->
   meck:unload(els_protocol),
   ok.
 
--spec wait_until_mocks_called(reference()) -> ok.
-wait_until_mocks_called(Ref) ->
-  receive {ct_run_test, Ref} -> ok after 1000 -> ok end,
-  receive {notification, Ref} -> ok after 1000 -> ok end.
+-spec wait_until_mock_called(atom(), atom()) -> ok.
+wait_until_mock_called(M, F) ->
+  case meck:num_calls(M, F, '_') of
+    0 ->
+      timer:sleep(100),
+      wait_until_mock_called(M, F);
+    _ ->
+      ok
+  end.
